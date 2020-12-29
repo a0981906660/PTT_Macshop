@@ -22,10 +22,10 @@ setwd(wd_path)
 load("1_data_scraping/collected_datasets/DS_Posts_iphone_2020-12-24_.rda")
 
 # Sketch
-Posts %>% 
-    filter(str_detect(string = pcontent, pattern = "女用機")) %>% View
-Posts %>% 
-    filter(str_detect(string = pcontent, pattern = "男用機")) %>% View
+# Posts %>% 
+#     filter(str_detect(string = pcontent, pattern = "女用機")) %>% View
+# Posts %>% 
+#     filter(str_detect(string = pcontent, pattern = "男用機")) %>% View
 
 # 女用機
 female_all <- Posts %>% 
@@ -37,8 +37,7 @@ female_all <- Posts %>%
     mutate(IsSold = ifelse(str_detect(string = ptitle, pattern = "售出|已售出|已售|已出售"), 1, 0),
            IsBought = ifelse(str_detect(string = ptitle, pattern = "徵到|徵得|已徵得|已徵到|收到|已購買|已購入"), 1, 0)) %>% 
     filter((IsSold==1 | IsBought==1)) %>% 
-    filter(str_detect(string = pcontent, pattern = "女用機|女用|女生用")) %>% 
-    View
+    filter(str_detect(string = pcontent, pattern = "女用機|女用|女生用"))
 # 男用機
 male_all <- Posts %>% 
     mutate(IsSell = ifelse(str_detect(ptitle, "\\[販售\\]|\\[賣|出售|販售|售") |

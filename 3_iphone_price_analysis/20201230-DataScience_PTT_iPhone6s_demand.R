@@ -5,6 +5,15 @@ library(stringr)
 library(readr)
 library(dplyr)
 library(sjmisc) #dummies
+#robust s.e.
+#https://www.brodrigues.co/blog/2018-07-08-rob_stderr/
+library(robustbase)
+library(tidyverse)
+library(sandwich)
+library(lmtest)
+library(modelr)
+library(broom)
+
 options(stringsAsFactors = F)
 httr::set_config(httr::config(http_version = 0))
 
@@ -202,7 +211,7 @@ reg4 <- lm(formula = price ~ quantity + TimeUsed + ROM + Is_6s_plus,
            data = i6s_WTP_df)
 summary(reg4)
 
-# 3. Estimating the supply and demand for iphone6s
+# 3. Estimating the supply and demand for iphone6s - at equilibrium
 iphone6s_df %>% 
     filter(IsBought == 1 | IsSold == 1) %>% 
     mutate(week = as.Date(cut(ptime, "week"))) %>% 
@@ -281,4 +290,29 @@ summary(m_iv)
 # reg_stage2 <- lm(quantity ~  reg_stage1$fitted.values + TimeUsed + ROM + Is_6s_plus,
 #                  data = )
 # summary(reg_stage1)
-# 
+
+
+# 4. Probit Model : the probability of successfully selling an i-phone
+colnames(iphone6s_df)
+reg_LPM <- lm(IsSold ~ avg_price + ROM + Is_6s_plus+TimeUsed+IsFemale+
+                     color_灰+color_金+color_玫瑰+color_銀,
+                 data=iphone6s_df %>% filter(IsSell==1))
+summary(reg_LPM)
+reg_LPM %>% 
+    vcovHC() %>% 
+    diag() %>% 
+    sqrt()
+coeftest(reg_LPM, vcov = vcovHC(reg_LPM))
+coeftest(reg_LPM, vcov = vcovHC(reg_LPM, type = "HCˇ"))
+
+reg_probit <- glm(IsSold ~ avg_price + ROM + Is_6s_plus+TimeUsed+IsFemale+
+                      color_灰+color_金+color_玫瑰+color_銀, 
+                  data=iphone6s_df %>% filter(IsSell==1), family=binomial(probit))
+summary(reg_probit)
+coeftest(reg_probit, vcov = vcovHC(reg_probit, type = "HC3"))
+
+reg_logit <- glm(IsSold ~ avg_price + ROM + Is_6s_plus+TimeUsed+IsFemale+
+                      color_灰+color_金+color_玫瑰+color_銀, 
+                  data=iphone6s_df %>% filter(IsSell==1), family=binomial(logit))
+summary(reg_logit)
+coeftest(reg_logit, vcov = vcovHC(reg_logit, type = "HC3"))

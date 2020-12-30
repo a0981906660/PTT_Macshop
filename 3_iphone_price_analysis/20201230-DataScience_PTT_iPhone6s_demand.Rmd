@@ -1,0 +1,371 @@
+---
+title: "iphone analysis"
+author: "Boyie Chen"
+date: "12/30/2020"
+output:
+  pdf_document:
+    includes:
+      in_header: header.tex
+    latex_engine: xelatex
+  html_document: default
+---
+
+# iPhone Second Hand Market Analysis
+
+## Enviroment Setting
+```{r}
+library(rvest)
+library(httr)
+library(tidyverse)
+library(stringr)
+library(readr)
+library(dplyr)
+library(sjmisc) #dummies
+#robust s.e.
+#https://www.brodrigues.co/blog/2018-07-08-rob_stderr/
+library(robustbase)
+library(tidyverse)
+library(sandwich)
+library(lmtest)
+library(modelr)
+#library(broom)
+library("ivreg")
+options(stringsAsFactors = F)
+httr::set_config(httr::config(http_version = 0))
+```
+
+### Loading Data
+
+```{r}
+# environment
+load("/Users/Andy 1/Google 雲端硬碟 (r08323004@g.ntu.edu.tw)/0 Semesters/109-1/一234 資料科學/0_Final_Project/PTT_Macshop/1_data_scraping/collected_datasets/DS_Posts_iphone_2020-12-24_.rda")
+```
+
+## Data Cleaning
+```{r}
+# all iphone prices
+tidy_df <- Posts %>% 
+    mutate(IsSell = ifelse(str_detect(ptitle, "\\[販售\\]|\\[賣|出售|販售|售") |
+                               str_detect(string = pcontent, pattern = "售價"), 1, 0),
+           IsBuy = ifelse(str_detect(ptitle, "\\[收購\\]|\\[買") |
+                              str_detect(string = pcontent, pattern = "我想要買"), 1, 0),
+           IsChange = ifelse(str_detect(ptitle, "\\[交換\\]|\\[換"), 1, 0))%>%
+    mutate(IsSold = ifelse(str_detect(string = ptitle, pattern = "售出|已售出|已售|已出售"), 1, 0),
+           IsBought = ifelse(str_detect(string = ptitle, pattern = "徵到|徵得|已徵得|已徵到|收到|已購買|已購入"), 1, 0)) %>% 
+    filter(!(IsBuy==0 & IsSell ==0 & IsChange ==0 & IsSold==0 & IsBought==0))
+#extract prices
+tidy_df <- tidy_df %>% 
+    mutate(price_text = str_extract(pcontent, "價.{1,12}(\\d{2,5}){1,2}|價格.{1,8}(\\d{2,5}){1,2}")) %>% 
+    mutate(price_text = gsub(",", "", price_text)) %>% 
+    mutate(price = str_extract_all(price_text, "\\d{3,4}0")) %>%
+    filter(lengths(price)<=2) %>% 
+    drop_na() %>% 
+    unnest(price) %>% 
+    mutate(price = as.numeric(price)) %>% 
+    group_by(url) %>% 
+    mutate(avg_price = mean(price)) %>% 
+    ungroup() %>% 
+    filter(!duplicated(url)) %>% 
+    select(-price,-price_text)
+#hist(tidy_df$avg_price)
+
+color_pattern <- regex("銀|金|灰|玫瑰|白|綠|紅|藍|石墨")
+
+tidy_df <- tidy_df %>% 
+    drop_na() %>% 
+    # ROM
+    mutate(ROM_text = str_extract(pcontent, "[1-2]\\d{2}G|[1-2]\\d{2}g|\\d{2}G|\\d{2}g")) %>% 
+    mutate(ROM = str_extract(ROM_text, "\\d{2,3}")) %>% 
+    mutate(ROM = as.numeric(ROM)) %>% 
+    select(-ROM_text) %>% 
+    # Color
+    mutate(color_c = str_extract(pcontent, color_pattern)) %>% 
+    mutate(color_t = str_extract(ptitle, color_pattern)) %>% 
+    mutate(color = ifelse(!is.na(color_c), color_c, color_t)) %>% 
+    select(-color_t, -color_c) %>% 
+    mutate(color = ifelse(!is.na(color), color, "No_Color")) %>% 
+    
+    # Usage
+    mutate(ptime = parse_datetime(ptime, format = "%a %b %d %H:%M:%S %Y")) %>% 
+    #mutate(ptime = as.POSIXct(ptime)) %>% 
+    #mutate(referenceTime = as.POSIXct(parse_datetime("2015-09-25", "%Y-%m-%d"))) %>% 
+    #mutate(TimeUsed = as.numeric(difftime(ptime-referenceTime, units='days'))/365) %>% 
+    #filter(TimeUsed>=0) %>% 
+    mutate(TimeUsed = as.numeric(ptime)) %>% 
+    
+    # Gender
+    mutate(IsFemale = ifelse(str_detect(string = pcontent, pattern = "女用機|女用|女生用"), 1, 0))%>% 
+    mutate(IsMale = ifelse(str_detect(string = pcontent, pattern = "男用機|男用|男生用"), 1, 0))
+
+# get dummies
+tidy_df <- tidy_df %>% 
+    to_dummy(color, suffix = "label") %>% 
+    bind_cols(tidy_df) %>% 
+    select(everything())
+```
+
+### iPhone 6s Specific Data Cleaning
+
+```{r}
+# Conditional on iPhone 6s
+#型號、RAM/ROM容量、color、發文時間（作為使用幾年的依據）
+type_pattern <- regex("plus|\\+", ignore_case=TRUE)
+
+iphone6s_df <- tidy_df %>% 
+    filter(str_detect(string = ptitle, pattern = "6s")) %>% 
+    # Type
+    mutate(Is_6s_plus = (ifelse(str_detect(ptitle, type_pattern), 1, 0))) %>% 
+    # ROM
+    mutate(TimeUsed = as.numeric(ptime-parse_datetime("2015-09-25", "%Y-%m-%d"))/24) %>% 
+    filter(TimeUsed>=0)
+```
+
+# Explorative Data Analysis
+
+
+# Inference Statistics
+
+## 1. 「女用機」比較值錢？
+
+在`Macshop`版中，有時可以見到欲出售iphone的貼文內標注「女用機」或「女生用」等字眼，通常被認為是要顯示「原主人為細心使用的女性，因此手機保養得很好，品項優良」等隱含訊息。然而，「女用機」真的可以賣得比較貴嗎？亦或是其實並沒有呢？若有，我們暫且將此"premium"稱為"gender rent"
+
+```{r}
+tidy_df %>%
+  filter(IsFemale==1) %>% 
+  nrow
+tidy_df %>%
+  filter(IsMale==1) %>% 
+  nrow
+
+```
+
+在$163950$則貼文中，標注「男用機」的貼文有$83$則，標注「女用機」的貼文有$2922$則，是男用機的$35$倍。
+
+```{r}
+# Gender Rent
+gender_df <- tidy_df %>%
+  filter(IsBought==1 | IsSold==1)
+reg1 <- lm(formula = avg_price ~ IsFemale + IsMale + TimeUsed + ROM + 
+           color_紅 + color_灰 + color_金 + color_藍 + color_綠 + color_玫瑰 + color_銀,
+           data = gender_df)
+summary(reg1)
+coeftest(reg1, vcov = vcovHC(reg1, type = "HC3"))
+```
+
+事實上，與預期相反，在所有型號中且是「已售出」或「已徵得」的iPhone中，標注有「女用機」的貼文的成交價格是比較低的。
+
+```{r}
+
+gender_df <- iphone6s_df %>%
+  filter(IsBought==1 | IsSold==1)
+
+reg1 <- lm(formula = avg_price ~ IsFemale + IsMale + TimeUsed + ROM + 
+           color_灰 + color_金 + color_玫瑰 + color_銀,
+           data = gender_df)
+summary(reg1)
+coeftest(reg1, vcov = vcovHC(reg1, type = "HC3"))
+
+```
+若是限制在iPhone 6s這個機型的話，則沒有顯著地異於零，但大致的方向仍是負的，意味著標示「女用機」並沒有辦法「提升價格」。事實上，在PTT的文化中，更常見的是嘲諷標注女用機的貼文者，或許這可以部分地解釋為何標示了「女用機」反而會有比較低的成交價格。
+
+
+## 2. Estimating the Willingness To Pay & the Willingness To Be Paid
+
+由於iPhone 6s此一機型非常地暢銷，自2015年發售以來便持續活躍於二手交易市場，以致於在關鍵字為iPhone的19萬則貼文中，儘管iPhone有從3GS到iPhone 12等數十個型號，但仍有近$10\%$的貼文是此單一機型，因此我們將所估計的財貨限制在此一型號
+
+
+首先，由於二手交易版需要使用者在貼文時標注自己希望「出售」還是「購買」（徵求）。在使用者打算「徵求」購買一支二手的手機時，我們可以將帶有「購買」分類標籤的貼文簡單地視為使用者標注了自己的"Willingness To Pay"（願付價格）；而對於打算出售二手手機的使用者，文內的「希望價格」我們則以"Willingness To Be Paid"來稱之。
+
+若分別以inverse supply function 以及 inverse demand function的角度視之，我們可以分別寫下：
+
+$$p_t = \alpha_0 + \alpha_1 q_t^s + \alpha_2 W_t + u_t$$
+$$p_t = \alpha_0 + \alpha_1 q_t^d + \alpha_2 W_t + u_t$$
+其中，$q_t^s, q_t^d$分別代表時間$t$時，iPhone 6s的供給以及需求
+
+在此，由於我們有區別是在supply side或demand side的分類標籤，因此無須處理simultaneous equation的問題。當然，我們所估計的上面兩條迴歸式尚且不能稱之為供給及需求函數，但可以作為此二函數的近似。在此，我們尚且稱呼此二式為Willingness To Be Paid (WTBP)及Willingness To Pay (WTP)
+
+
+### WTBP
+```{r}
+# iphone 6s : 15873 obs
+# supply
+i6s_WTBP_df <- iphone6s_df %>% 
+    filter(IsSell == 1) %>% 
+    mutate(week = as.Date(cut(ptime, "week"))) %>% 
+    group_by(week, ROM) %>% 
+    mutate(quantity = n()) %>%
+    ungroup() %>% 
+    group_by(week) %>% 
+    summarise(price = mean(avg_price),
+              quantity = quantity,
+              ROM = ROM,
+              TimeUsed = mean(TimeUsed),
+              Is_6s_plus = Is_6s_plus) %>% 
+    filter(!duplicated(week, ROM))
+
+reg3 <- lm(formula = price ~ quantity + TimeUsed + ROM + Is_6s_plus,
+           data = i6s_WTBP_df)
+summary(reg3)
+coeftest(reg3, vcov = vcovHC(reg3, type = "HC3"))
+```
+也就是，WTBP:
+$$p = 22346.26 + 20.54 q^s$$
+
+### WTP
+
+```{r}
+# demand
+i6s_WTP_df <- iphone6s_df %>% 
+    filter(IsBuy == 1) %>% 
+    mutate(week = as.Date(cut(ptime, "week"))) %>% 
+    group_by(week, ROM) %>% 
+    mutate(quantity = n()) %>%
+    ungroup() %>% 
+    group_by(week) %>% 
+    summarise(price = mean(avg_price),
+              quantity = quantity,
+              ROM = ROM,
+              TimeUsed = mean(TimeUsed),
+              Is_6s_plus = Is_6s_plus) %>% 
+    filter(!duplicated(week, ROM))
+
+reg4 <- lm(formula = price ~ quantity + TimeUsed + ROM + Is_6s_plus,
+           data = i6s_WTP_df)
+summary(reg4)
+coeftest(reg4, vcov = vcovHC(reg4, type = "HC3"))
+```
+也就是，WTP:
+$$p = 23691.78 - 8.54 q^d$$
+
+## 3. Estimating the demand function for iPhone 6s
+
+iPhone 6s 週成交價格走勢圖
+```{r}
+iphone6s_df %>% 
+    filter(IsBought == 1 | IsSold == 1) %>% 
+    mutate(week = as.Date(cut(ptime, "week"))) %>% 
+    group_by(week, ROM) %>% 
+    mutate(quantity = n()) %>%
+    ungroup() %>% 
+    group_by(week) %>% 
+    summarise(price = mean(avg_price),
+              quantity = quantity,
+              ROM = ROM,
+              TimeUsed = mean(TimeUsed),
+              Is_6s_plus = Is_6s_plus) %>% 
+    filter(!duplicated(week, ROM)) %>% 
+    ggplot(aes(week, price)) +
+    geom_line()
+```
+
+有別於`(2.)`中的估計，我們可以針對「已售出」或「已徵得」的貼文（以下稱之為已成交的貼文），將其內的價格視為「均衡價格」，並利用IV Estimation來控制住supply shifter，藉此估計出demand function。
+
+### 為何需要supply shifter? 
+
+由於我們所觀察到的所有的成交的「價格」與「數量」（paired data）皆是在「均衡」時所觀察到的，然而，均衡是需求等於供給之時，因此我們無法簡單地把這些均衡的價格與數量描繪成scatter plot，然後知道這些點應該沿著需求還是供給線移動。
+
+若是簡單地將價格對數量跑迴歸，將會面臨內生性問題，這是源自於simultaneous equation的問題。
+
+這意味著，若我們想要知道需求曲線，就需要找到「只會影響供給，但不會影響需求的變數」，以此作為supply shifter，我們便可描繪出需求曲線。符合此條件的supply shifter實際上就是一個IV，因此我們可以簡單地透過2SLS或者IV Regression來得到對於demand function正確地估計（至少是避免內生性問題的估計）
+
+在此，我們propose一個IV，它是「販賣或購買iPhone 6s的貼文內是否標注了『台積電/TSMC晶片』或『三星/Samsung晶片』」，因此我們的IV為兩個Dummy Variable，分別以`IsTSMC`及`IsSamsung`稱之。
+
+### 為何以此作為IV？
+
+由於2015.9.25發表iPhone 6s及6s Plus之後，隨即發生了「晶片門」事件。事件經過大致是6s的A9晶片製造廠商分別有台積電以及三星，但三星的晶片有易發熱、速度較慢、電池續航較差等問題，導致拿到三星晶片版本的消費者不滿，希望退貨，在十月開始在香港等其他地區亦陸續有退貨潮。然而，台灣當時尚無蘋果直營店，因此除了透過官網購買的消費者外，並無無條件退貨的門路。再考量到當時主要取得貨源的三大電信業者皆為消費者推出各類針對iPhone新機的綁約服務，我們認定「晶片門」事件會影響iPhone二手交易市場的「供給」，因為拿到三星版晶片的消費者退貨無門，較可能傾向在二手市場出售手上的手機，而且以較低的價格出售；若是拿到台積電版本晶片的消費者反而可以獲得一些「套利」空間，以較高的價格出售。
+
+至於需求，我們認定「晶片門」事件對「iPhone 6s二手交易市場的需求」沒有影響，因為iPhone 6s在事件爆發時尚屬新品，且在二手市場有需求者大多是對於價格較實惠的舊世代產品有需求，所以我們可以認為晶片門事件對於本來就想買二手iPhone 6s的消費者需求沒有影響。
+
+
+```{r}
+# 晶片門
+chip_pattern <- regex("A9晶片|台積電|三星|TSMC|samsung",ignore_case=TRUE)
+i6s_IV_df <- iphone6s_df %>% 
+    #filter(IsBought==1 | IsSold==1) %>% 
+    mutate(IsTSMC = ifelse(str_detect(pcontent, pattern = regex("台積電|TSMC",ignore_case=TRUE)), 1, 0)) %>% 
+    mutate(IsSamsung = ifelse(str_detect(pcontent, pattern = regex("三星|samsung",ignore_case=TRUE)), 1, 0)) %>% 
+    mutate(IsChipGate = ifelse(str_detect(pcontent, pattern = chip_pattern), 1, 0)) %>% 
+
+    mutate(week = as.Date(cut(ptime, "week"))) %>% 
+    group_by(week, ROM) %>% 
+    mutate(quantity = n()) %>%
+    ungroup() %>% 
+    group_by(week) %>% 
+    summarise(price = mean(avg_price),
+              quantity = quantity,
+              ROM = ROM,
+              TimeUsed = mean(TimeUsed),
+              Is_6s_plus = Is_6s_plus,
+              IsTSMC = IsTSMC,
+              IsSamsung = IsSamsung,
+              IsChipGate = IsChipGate) %>% 
+    #drop_na() %>% 
+    filter(!duplicated(week, ROM))
+```
+### IV Regression
+
+我們真實想估計的demand function（非inverse demand function）是：
+$$q^d_t = \beta_0 + \beta_1p_t +\beta_3 W_t + \epsilon_t$$
+其中$W_t$表示其他外生變數。但由於$p_t$存在內生性問題（$Cov(p_t, \epsilon_t)\neq 0$），因此我們可以透過$IsTSMC$以及$IsSamsung$來此二外生變數來serve $p_t$
+
+透過IV regression可以得到：
+```{r}
+### IV reg
+# demand function
+m_iv <- ivreg(quantity ~ price + TimeUsed + ROM + Is_6s_plus | 
+                  IsTSMC + IsSamsung + TimeUsed + ROM + Is_6s_plus,
+              data = i6s_IV_df)
+summary(m_iv)
+coeftest(m_iv, vcov = vcovHC(m_iv, type = "HC3"))
+```
+也就是demand function為：
+
+$$q^d = 4284.60 - 0.18328 p$$
+移項得到inverse demand function:
+$$p = 23377.34 - 5.4561 q^d$$
+
+回顧在(2.)中估計的WTP:
+$$p = 23691.78 - 8.54 q^d$$
+可以發現二者結果相近。當然，IV Estimation所給我們的估計較為保守，可以見到在絕對值的意義上，IV Estimation的估計值較小。
+
+
+## 4. Probit Model : the probability of successfully selling an iPhone 6s
+
+由於我們的貼文有是否成交的標注，因此可以簡單地透過Probit Model來看看哪些因素影響一個賣家成功賣出手機的機率。
+
+
+### LPM
+
+```{r}
+reg_LPM <- lm(IsSold ~ avg_price + ROM + Is_6s_plus+TimeUsed+IsFemale+
+                     color_灰+color_金+color_玫瑰+color_銀,
+                 data=iphone6s_df %>% filter(IsSell==1))
+summary(reg_LPM)
+coeftest(reg_LPM, vcov = vcovHC(reg_LPM, type = "HC3"))
+```
+
+
+### Probit
+
+```{r}
+reg_probit <- glm(IsSold ~ avg_price + ROM + Is_6s_plus+TimeUsed+IsFemale+
+                      color_灰+color_金+color_玫瑰+color_銀, 
+                  data=iphone6s_df %>% filter(IsSell==1), family=binomial(probit))
+summary(reg_probit)
+coeftest(reg_probit, vcov = vcovHC(reg_probit, type = "HC3"))
+```
+
+### Logit
+
+```{r}
+reg_logit <- glm(IsSold ~ avg_price + ROM + Is_6s_plus+TimeUsed+IsFemale+
+                      color_灰+color_金+color_玫瑰+color_銀, 
+                  data=iphone6s_df %>% filter(IsSell==1), family=binomial(logit))
+summary(reg_logit)
+coeftest(reg_logit, vcov = vcovHC(reg_logit, type = "HC3"))
+```
+可以發現，無論是在線性機率模型中還是Pobit或Logit Model，最重要的因素仍是價格：價格越低，成交的機率就越高。
+有趣的是，2015年推出iPhone 6s時，「玫瑰金」是新出的顏色而比較搶手，因而有段時間在市場上無論是平行輸入還是二手iPhone 6s，只要顏色是玫瑰金就可以賣出比較高的價格。而在此機率模型中，也體現了該顏色的搶手程度，若是顏色是玫瑰金，就有比較高的機會賣出，這個效果在其他顏色中是沒有體現的。
+
+
+

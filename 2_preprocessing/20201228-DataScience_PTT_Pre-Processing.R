@@ -5,7 +5,7 @@ library(stringr)
 library(readr)
 options(stringsAsFactors = F)
 httr::set_config(httr::config(http_version = 0))
-
+pnorm(6.736, lower.tail = F)
 # MBP:113*20
 # Macbook Pro:1148*20
 # MBA:31

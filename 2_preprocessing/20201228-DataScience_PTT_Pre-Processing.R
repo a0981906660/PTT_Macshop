@@ -3,9 +3,11 @@ library(httr)
 library(tidyverse)
 library(stringr)
 library(readr)
+library(dplyr)
+library(sjmisc) #dummies
 options(stringsAsFactors = F)
 httr::set_config(httr::config(http_version = 0))
-pnorm(6.736, lower.tail = F)
+
 # MBP:113*20
 # Macbook Pro:1148*20
 # MBA:31
@@ -49,6 +51,7 @@ tidy_df <- tidy_df %>%
     select(-price,-price_text)
 #hist(tidy_df$avg_price)
 
+# Conditional on iPhone 6s
 #型號、RAM/ROM容量、color、發文時間（作為使用幾年的依據）
 type_pattern <- regex("plus|\\+", ignore_case=TRUE)
 color_pattern <- regex("銀|金|灰|玫瑰")
@@ -60,7 +63,7 @@ color_pattern <- regex("銀|金|灰|玫瑰")
 # as.numeric(tt)
 # parse_datetime(tidy_df$ptime[1], format = "%a %b %d %H:%M:%S %Y")
 
-tidy_df <- tidy_df %>% 
+iphone6s_df <- tidy_df %>% 
     filter(str_detect(string = ptitle, pattern = "6s")) %>% 
     # Type
     mutate(Is_6s_plus = (ifelse(str_detect(ptitle, type_pattern), 1, 0))) %>% 
@@ -75,17 +78,33 @@ tidy_df <- tidy_df %>%
     mutate(color_t = str_extract(ptitle, color_pattern)) %>% 
     mutate(color = ifelse(!is.na(color_c), color_c, color_t)) %>% 
     select(-color_t, -color_c) %>% 
+    mutate(color = ifelse(!is.na(color), color, "No_Color")) %>% 
     
     # Usage
     mutate(ptime = parse_datetime(ptime, format = "%a %b %d %H:%M:%S %Y")) %>% 
-    mutate(TimeUsed = as.numeric(ptime-parse_datetime("2015-09-25", "%Y-%m-%d"))) %>% 
+    mutate(TimeUsed = as.numeric(ptime-parse_datetime("2015-09-25", "%Y-%m-%d"))/24) %>% 
+    filter(TimeUsed>=0) %>% 
     
     # Gender
     mutate(IsFemale = ifelse(str_detect(string = pcontent, pattern = "女用機|女用|女生用"), 1, 0))%>% 
     mutate(IsMale = ifelse(str_detect(string = pcontent, pattern = "男用機|男用|男生用"), 1, 0))
 
+# get dummies
+iphone6s_df <- 
+    iphone6s_df %>% 
+    to_dummy(color, suffix = "label") %>% 
+    bind_cols(iphone6s_df) %>% 
+    select(everything())
+
 nrow(tidy_df)
 nrow(tidy_df %>% drop_na())
+
+nrow(iphone6s_df)
+nrow(iphone6s_df %>% drop_na())
+
+########## finish cleaning data ##########
+
+# 1.Seeking for Gender Rent
 
 # Sketch
 tidy_df %>%
@@ -93,7 +112,7 @@ tidy_df %>%
 tidy_df %>%
     filter(str_detect(string = pcontent, pattern = "男用機")) %>% View
 
-# Seeking for Gender Rent
+# Gender Rent
 gender_df <- tidy_df %>%
     mutate(IsFemale = ifelse(str_detect(string = pcontent, pattern = "女用機|女用|女生用"), 1, 0))%>% 
     mutate(IsMale = ifelse(str_detect(string = pcontent, pattern = "男用機|男用|男生用"), 1, 0))%>% 

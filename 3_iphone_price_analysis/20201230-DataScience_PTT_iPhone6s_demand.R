@@ -160,8 +160,125 @@ reg2 <- lm(formula = avg_price ~ IsFemale + TimeUsed + ROM +
    data = gender_df)
 summary(reg2)
 
+
 # 2. Estimating the supply and demand for iphone6s
 
-# iphone 6s : 15880 obs
-iphone6s_df %>% 
+# iphone 6s : 15873 obs
+# supply
+i6s_WTBP_df <- iphone6s_df %>% 
+    filter(IsSell == 1) %>% 
+    mutate(week = as.Date(cut(ptime, "week"))) %>% 
+    group_by(week, ROM) %>% 
+    mutate(quantity = n()) %>%
+    ungroup() %>% 
+    group_by(week) %>% 
+    summarise(price = mean(avg_price),
+              quantity = quantity,
+              ROM = ROM,
+              TimeUsed = mean(TimeUsed),
+              Is_6s_plus = Is_6s_plus) %>% 
+    filter(!duplicated(week, ROM))
 
+reg3 <- lm(formula = price ~ quantity + TimeUsed + ROM + Is_6s_plus,
+           data = i6s_WTBP_df)
+summary(reg3)
+    
+# demand
+i6s_WTP_df <- iphone6s_df %>% 
+    filter(IsBuy == 1) %>% 
+    mutate(week = as.Date(cut(ptime, "week"))) %>% 
+    group_by(week, ROM) %>% 
+    mutate(quantity = n()) %>%
+    ungroup() %>% 
+    group_by(week) %>% 
+    summarise(price = mean(avg_price),
+              quantity = quantity,
+              ROM = ROM,
+              TimeUsed = mean(TimeUsed),
+              Is_6s_plus = Is_6s_plus) %>% 
+    filter(!duplicated(week, ROM))
+
+reg4 <- lm(formula = price ~ quantity + TimeUsed + ROM + Is_6s_plus,
+           data = i6s_WTP_df)
+summary(reg4)
+
+# 3. Estimating the supply and demand for iphone6s
+iphone6s_df %>% 
+    filter(IsBought == 1 | IsSold == 1) %>% 
+    mutate(week = as.Date(cut(ptime, "week"))) %>% 
+    group_by(week, ROM) %>% 
+    mutate(quantity = n()) %>%
+    ungroup() %>% 
+    group_by(week) %>% 
+    summarise(price = mean(avg_price),
+              quantity = quantity,
+              ROM = ROM,
+              TimeUsed = mean(TimeUsed),
+              Is_6s_plus = Is_6s_plus) %>% 
+    filter(!duplicated(week, ROM)) %>% 
+    ggplot(aes(week, price)) +
+    geom_line()
+
+# iphone6s_df %>% 
+#     filter(!duplicated(week, ROM)) %>% 
+#     filter(IsBought == 1 | IsSold == 1) %>% 
+#     View
+
+# 晶片門
+chip_pattern <- regex("A9晶片|台積電|三星|TSMC|samsung",ignore_case=TRUE)
+i6s_IV_df <- iphone6s_df %>% 
+    #filter(IsBought==1 | IsSold==1) %>% 
+    mutate(IsTSMC = ifelse(str_detect(pcontent, pattern = regex("台積電|TSMC",ignore_case=TRUE)), 1, 0)) %>% 
+    mutate(IsSamsung = ifelse(str_detect(pcontent, pattern = regex("三星|samsung",ignore_case=TRUE)), 1, 0)) %>% 
+    mutate(IsChipGate = ifelse(str_detect(pcontent, pattern = chip_pattern), 1, 0)) %>% 
+
+    mutate(week = as.Date(cut(ptime, "week"))) %>% 
+    group_by(week, ROM) %>% 
+    mutate(quantity = n()) %>%
+    ungroup() %>% 
+    group_by(week) %>% 
+    summarise(price = mean(avg_price),
+              quantity = quantity,
+              ROM = ROM,
+              TimeUsed = mean(TimeUsed),
+              Is_6s_plus = Is_6s_plus,
+              IsTSMC = IsTSMC,
+              IsSamsung = IsSamsung,
+              IsChipGate = IsChipGate) %>% 
+    filter(!duplicated(week, ROM))
+    
+###    
+#install.packages("ivreg", dependencies = TRUE)
+#remotes::install_github("https://github.com/john-d-fox/ivreg/")
+library("ivreg")
+### 
+
+### IV reg
+# demand function
+m_iv <- ivreg(quantity ~ price + TimeUsed + ROM + Is_6s_plus | 
+                  IsTSMC + IsSamsung + TimeUsed + ROM + Is_6s_plus,
+              data = i6s_IV_df)
+summary(m_iv)
+
+# inverse demand
+m_iv <- ivreg(price ~ quantity + TimeUsed + ROM + Is_6s_plus | 
+                  IsTSMC + IsSamsung + TimeUsed + ROM + Is_6s_plus,
+              data = i6s_IV_df)
+summary(m_iv)
+
+
+# stage 1: p_t = alpha0 + alpha1 D_TSMC + alpha2 D_Samsung + alpha3 W
+# stage 2: q^d_t = beta0 + beta1 p_t + beta2 W + e_t
+
+# reg_stage1 <- lm(price ~ IsTSMC + IsSamsung + TimeUsed + ROM + Is_6s_plus,
+#                  data = i6s_IV_df)
+# summary(reg_stage1)
+# reg_stage1$fitted.values
+# length(reg_stage1$fitted.values)
+# 
+# cbind(i6s_IV_df ,reg_stage1$fitted.values)
+# 
+# reg_stage2 <- lm(quantity ~  reg_stage1$fitted.values + TimeUsed + ROM + Is_6s_plus,
+#                  data = )
+# summary(reg_stage1)
+# 

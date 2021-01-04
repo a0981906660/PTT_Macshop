@@ -1,0 +1,8 @@
+\beamer@sectionintoc {1}{Core Question}{3}{0}{1}
+\beamer@sectionintoc {2}{Data Description}{4}{0}{2}
+\beamer@sectionintoc {3}{Descriptive Statistics}{6}{0}{3}
+\beamer@sectionintoc {4}{Results}{7}{0}{4}
+\beamer@subsectionintoc {4}{1}{「女用機」比較值錢？}{8}{0}{4}
+\beamer@subsectionintoc {4}{2}{Estimating the second-hand iPhone Demand}{14}{0}{4}
+\beamer@subsectionintoc {4}{3}{Estimating the Demand Curve via IV Regression}{22}{0}{4}
+\beamer@subsectionintoc {4}{4}{The probability of successfully selling an iPhone 6s}{31}{0}{4}

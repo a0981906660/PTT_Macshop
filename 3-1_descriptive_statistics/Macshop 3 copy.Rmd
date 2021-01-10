@@ -1,0 +1,278 @@
+---
+title: "Macshop_Part1"
+author: "Vanessa Chung"
+date: "2020/12/26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(stringr)
+library(dplyr)
+library(tidyverse)
+library(tidyr)
+library(lubridate)
+options(stringsAsFactors = F)
+options(scipen=999)
+```
+
+# 載入資料
+```{r}
+load("DS_Posts_iphone_2020-12-24_.rda")
+```
+
+
+```{r}
+type_pattern <- regex("iphone3g|iphone3gs|iphone4|iphone4s|iphone5|iphone5s|iphone6|iphone6s|iphone7|iphone8|iphonex|iphonexs|iphonexr|iphone11|iphone11pro|iphone12|iphone12pro|iphonese|iphonese2|iphonese1", ignore_case=TRUE)
+try<-Posts%>%
+    mutate(ptime = parse_datetime(ptime, format = "%a %b %d %H:%M:%S %Y")) %>% 
+    mutate(TimeUsed = as.numeric(ptime)) %>% 
+    #mutate(ptime = as.POSIXct(strptime(ptime, "%a %b %e %X %Y")))%>%
+    #mutate(type= str_sub(pcontent,1,30))%>%
+    mutate(type=str_replace_all(pcontent, "\\s", ""))%>%
+    mutate(type=tolower(type))%>%
+    mutate(type=str_extract(type, type_pattern))%>%
+    drop_na()%>%
+    mutate(price_text = str_extract(pcontent, "價.{1,12}(\\d{2,5}){1,2}|價格.{1,8}(\\d{2,5}){1,2}")) %>% 
+    mutate(price_text = gsub(",", "", price_text)) %>% 
+    mutate(price = str_extract_all(price_text, "\\d{3,4}0")) %>%
+    filter(lengths(price)<=2) %>% 
+    drop_na() %>% 
+    unnest(price) %>% 
+    mutate(price = as.numeric(price)) %>% 
+    mutate(IsSell = ifelse(str_detect(ptitle, "\\[販售\\]|\\[賣|出售|販售|售") |
+                           str_detect(string = pcontent, pattern = "售價"), 1, 0),
+           IsBuy = ifelse(str_detect(ptitle, "\\[收購\\]|\\[買") |
+                          str_detect(string = pcontent, pattern = "我想要買"), 1, 0),
+           IsChange = ifelse(str_detect(ptitle, "\\[交換\\]|\\[換"), 1, 0))%>%
+    mutate(IsSold = ifelse(str_detect(string = ptitle, pattern = "售出|已售出|已售|已出售"), 1, 0),
+           IsBought = ifelse(str_detect(string = ptitle, pattern = "徵到|徵得|已徵得|已徵到|收到|已購買|已購入"), 1, 0)) 
+```
+
+
+```{r}
+three <-try%>%
+    mutate(is_i3gs=str_detect(ptitle,pattern="iphonei3gs"))%>%
+    mutate(is_i3g=str_detect(ptitle,pattern="iphonei3g"))%>%
+    mutate(i3g=ifelse(is_i3g=="TRUE",1,0))%>%
+    mutate(i3gs=ifelse(is_i3gs=="TRUE"&is_i3g=="TRUE",1,0))%>%
+    mutate(i3g_TRUE=i3g-i3gs)
+
+four <-try%>%
+    mutate(is_i4s=str_detect(ptitle,pattern="iphonei4"))%>%
+    mutate(is_i4=str_detect(ptitle,pattern="iphonei4"))%>%
+    mutate(i4=ifelse(is_i4=="TRUE",1,0))%>%
+    mutate(i4s=ifelse(is_i4s=="TRUE"&is_i4=="TRUE",1,0))%>%
+    mutate(i4_TRUE=i4-i4s)
+
+five <-try%>%
+    mutate(is_i5s=str_detect(ptitle,pattern="iphonei5"))%>%
+    mutate(is_i5=str_detect(ptitle,pattern="iphonei5"))%>%
+    mutate(i5=ifelse(is_i5=="TRUE",1,0))%>%
+    mutate(i5s=ifelse(is_i5s=="TRUE"&is_i5=="TRUE",1,0))%>%
+    mutate(i5_TRUE=i5-i5s)
+
+six <-try%>%
+    mutate(is_i6s=str_detect(ptitle,pattern="iphone6s|iphone6s"))%>%
+    mutate(is_i6=str_detect(ptitle,pattern="iphone6"))%>%
+    mutate(i6=ifelse(is_i6=="TRUE",1,0))%>%
+    mutate(i6s=ifelse(is_i6s=="TRUE"&is_i6=="TRUE",1,0))%>%
+    mutate(i6_TRUE=i6-i6s)
+
+ten_1 <-try%>%
+    mutate(is_xs=str_detect(ptitle,pattern="iphonexs"))%>%
+    mutate(is_x=str_detect(ptitle,pattern="iphonex"))%>%
+    mutate(ix=ifelse(is_x=="TRUE",1,0))%>%
+    mutate(ixs=ifelse(is_xs=="TRUE"&is_x=="TRUE",1,0))%>%
+    mutate(ix_TRUE=ix-ixs)
+
+ten_2 <-try%>%
+    mutate(is_xr=str_detect(ptitle,pattern="iphonexr"))%>%
+    mutate(is_x=str_detect(ptitle,pattern="iphonex"))%>%
+    mutate(ix=ifelse(is_x=="TRUE",1,0))%>%
+    mutate(ixr=ifelse(is_xr=="TRUE"&is_x=="TRUE",1,0))%>%
+    mutate(ix_TRUE=ix-ixr)
+
+#7
+seven <-try%>%
+    mutate(i7=str_detect(type,"iphone7"))%>%
+    mutate(i7=ifelse(i7=="TRUE",1,0))
+#8
+eight<-try%>%
+    mutate(i8=str_detect(type,"iphone8"))%>%
+    mutate(i8=ifelse(i8=="TRUE",1,0))
+
+eleven <-try%>%
+    mutate(is_i11pro=str_detect(ptitle,pattern="iphone11pro"))%>%
+    mutate(is_i11=str_detect(ptitle,pattern="iphone11"))%>%
+    mutate(i11=ifelse(is_i11=="TRUE",1,0))%>%
+    mutate(i11pro=ifelse(is_i11pro=="TRUE"&is_i11=="TRUE",1,0))%>%
+    mutate(i11_TRUE=i11-i11pro)
+
+tweleve <-try%>%
+    mutate(is_i12pro=str_detect(ptitle,pattern="iphone12pro"))%>%
+    mutate(is_i12=str_detect(ptitle,pattern="iphone12"))%>%
+    mutate(i12=ifelse(is_i12=="TRUE",1,0))%>%
+    mutate(i12pro=ifelse(is_i12pro=="TRUE"&is_i12=="TRUE",1,0))%>%
+    mutate(i12_TRUE=i12-i12pro)
+
+se1 <-try%>%
+    mutate(ise1=str_detect(type,"iphonese1"))%>%
+    mutate(ise1=ifelse(ise1=="TRUE",1,0))
+se2 <-try%>%
+    mutate(ise2=str_detect(type,"iphonese2"))%>%
+    mutate(ise2=ifelse(ise2=="TRUE",1,0))
+```
+
+
+#再用各種型號iPhone的發布時間進行篩選，確保資料沒有錯誤值
+```{r}
+all_clean_data<-try%>%
+    filter(i12==1&ptime>=as_date("2020-10-16")|i12pro==1&ptime>=as_date("2020-10-16")|i11==1&ptime>=as_date("2019-9-20")|i11pro==1&ptime>=as_date("2019-9-20")|ixr==1&ptime>=as_date("2018-10-26")|ixs==1&ptime>=as_date("2018-09-12")|ix==1&ptime>=as_date("2017-11-03")|i8==1&ptime>=as_date("2017-09-12")|i7==1&ptime>=as_date("2016-09-07")|i6s==1&ptime>=as_date("2015-09-25")|i6==1&ptime>=as_date("2014-09-09")|i5s==1&ptime>=as_date("2013-09-20")|i5==1&ptime>=as_date("2012-09-21")|i4s==1&ptime>=as_date("2011-10-14")|i4==1&ptime>=as_date("2010-06-24")|i3gs==1&ptime>=as_date("2009-06-19")|i3g==1&ptime>=as_date("2008-07-11")|ise==1&ptime>=as_date("2016-03-21"))
+```
+```{r}
+six%>%
+filter(i6_TRUE==1)%>%view
+```
+
+
+## iPhone各種型號的貼文數（人）佔總比例
+```{r}
+total <- 144848
+sum<-all_clean_data%>%
+    summarise(i3gs=sum(i3gs),i4=sum(i4),i5=sum(i5),
+              i6=sum(i6),i7=sum(i7),i8=sum(i8),
+              ix=sum(ix),i11=sum(i11),
+              i12=sum(i12),ise=sum(ise))
+
+prec1<-all_clean_data%>%
+    summarise(i3gs=sum(i3gs)/total,i4=sum(i4)/total,i5=sum(i5)/total,
+              i6=sum(i6)/total,i7=sum(i7)/total,i8=sum(i8)/total,
+              ix=sum(ix)/total,i11=sum(i11)/total,
+              i12=sum(i12)/total)%>%
+    gather(key="type",value="prec")%>%
+    arrange(desc(prec))
+
+
+              
+```
+
+
+
+# 繪製圓餅圖
+# 可看出i6、i6s的比例相對高
+
+```{r}
+library(ggplot2)
+prec1%>%
+ggplot()+
+    geom_bar(aes(x=factor(1),y=prec,fill=type),stat ="identity")+
+    coord_polar("y", start=0)
+```
+
+## 買、賣、交換、已購買、已售出的貼文數（人）佔總比例
+```{r}
+P<- all_clean_data%>%
+    mutate(price_text = str_extract(pcontent, "價.{1,12}(\\d{2,5}){1,2}|價格.{1,8}(\\d{2,5}){1,2}")) %>% 
+    mutate(price_text = gsub(",", "", price_text)) %>% 
+    mutate(price = str_extract_all(price_text, "\\d{3,4}0")) %>%
+    filter(lengths(price)<=2) %>% 
+    drop_na() %>% 
+    unnest(price) %>% 
+    mutate(price = as.numeric(price)) %>% 
+    group_by(url) %>% 
+    mutate(avg_price = mean(price)) %>% 
+    ungroup() %>% 
+    filter(!duplicated(url)) %>% 
+    select(-price,-price_text)
+```
+
+
+```{r}
+tidy_df <-P %>% 
+    mutate(IsSell = ifelse(str_detect(ptitle, "\\[販售\\]|\\[賣|出售|販售|售") |
+                           str_detect(string = pcontent, pattern = "售價"), 1, 0),
+           IsBuy = ifelse(str_detect(ptitle, "\\[收購\\]|\\[買") |
+                          str_detect(string = pcontent, pattern = "我想要買"), 1, 0),
+           IsChange = ifelse(str_detect(ptitle, "\\[交換\\]|\\[換"), 1, 0))%>%
+    mutate(IsSold = ifelse(str_detect(string = ptitle, pattern = "售出|已售出|已售|已出售"), 1, 0),
+           IsBought = ifelse(str_detect(string = ptitle, pattern = "徵到|徵得|已徵得|已徵到|收到|已購買|已購入"), 1, 0)) %>% 
+    filter(!(IsBuy==0 & IsSell ==0 & IsChange ==0 & IsSold==0 & IsBought==0))%>%
+    select(-url, -pcontent, -ptitle,-pauthor)
+
+total <- 128696
+prec2<-tidy_df%>%
+    summarise(IsSell=sum(IsSell)/total,IsBuy=sum(IsBuy)/total,IsChange=sum(IsChange)/total,IsBought=sum(IsBought)/total,IsSold=sum(IsSold)/total)%>%
+    gather(key="status",value="prec")%>%
+    arrange(desc(prec))
+```
+# 繪製圓餅圖
+# 可以看出販售的貼文數（人）超過3/4，但購買的人數卻不到1/4
+```{r}
+prec2%>%
+ggplot()+
+    geom_bar(aes(x=factor(1),y=prec,fill=status),stat ="identity")+
+    coord_polar("y", start=0)
+```
+# 繪製iPhone各種型號隨著時間變化的交易量（貼文數）
+```{r}
+Q <-all_clean_data%>%
+    mutate(week=floor_date(ptime, unit="week"))%>%
+    filter(ptime>=as_date("2010-12-11"))%>%
+    group_by(week)%>%
+    count(type)
+
+ggplot(data=Q)+geom_line(aes(week,n,color=type))+
+    labs(y="Quantity", x="Time(weekly)")
+
+Q%>%
+    top_n(30)
+```
+
+
+```{r}
+P1<- P%>%
+    mutate(week=floor_date(ptime, unit="week"))%>%
+    filter(ptime>=as_date("2010-12-11"))%>%
+    filter(avg_price<=50000)%>%
+    group_by(week,type) %>% 
+    mutate(avg_price = mean(avg_price))
+    #count(week,type,avg_price)
+
+ggplot(data=P1)+geom_line(aes(week,avg_price,color=type))+
+    labs(y="Price", x="Time(weekly)")
+```
+
+```{r}
+T1<-tidy_df%>%
+    gather("IsBuy","IsSell","IsChange","IsSold","IsBought",key="status",value="n",-type,-avg_price)%>%
+    filter(n==1)%>%
+    select(ptime, type, status, avg_price)%>%
+    filter(status=="IsBuy"|status=="IsSell")
+T2 <- T1%>%
+   mutate(week=floor_date(ptime, unit="week"))%>%
+    filter(ptime>=as_date("2010-12-11"))%>%
+    filter(avg_price<=50000)%>%
+    group_by(week,type)%>%
+    mutate(avg_price = mean(avg_price))
+    
+T3 <-T2%>%    
+    count(status)
+    
+
+```
+```{r}
+
+
+#未成交
+#售，已售，買，已買，交換隨時間的價格變化
+ggplot(data=T2)+geom_point(aes(week,avg_price,color=status))+
+    labs(y="Price", x="Time(weekly)")
+#售，已售，買，已買，交換隨時間的發文量
+ggplot(data=T3)+geom_point(aes(week,n,color=status))+
+    labs(y="Amount of post", x="Time(weekly)")
+```
+

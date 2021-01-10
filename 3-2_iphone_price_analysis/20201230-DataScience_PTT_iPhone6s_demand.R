@@ -319,4 +319,5 @@ coeftest(reg_logit, vcov = vcovHC(reg_logit, type = "HC3"))
 
 # Output data
 getwd()
-save(tidy_df, "tidy_df.rda")
+save(tidy_df, file = "2_preprocessing/processed/tidy_df.rda")
+save(iphone6s_df, file = "2_preprocessing/processed/iphone6s_df.rda")

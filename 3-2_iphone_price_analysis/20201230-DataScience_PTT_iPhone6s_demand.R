@@ -316,3 +316,7 @@ reg_logit <- glm(IsSold ~ avg_price + ROM + Is_6s_plus+TimeUsed+IsFemale+
                   data=iphone6s_df %>% filter(IsSell==1), family=binomial(logit))
 summary(reg_logit)
 coeftest(reg_logit, vcov = vcovHC(reg_logit, type = "HC3"))
+
+# Output data
+getwd()
+save(tidy_df, "tidy_df.rda")

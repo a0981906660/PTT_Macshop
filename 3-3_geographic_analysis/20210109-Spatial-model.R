@@ -8,21 +8,11 @@ library(sjmisc) #dummies
 options(stringsAsFactors = F)
 httr::set_config(httr::config(http_version = 0))
 
-# MBP:113*20
-# Macbook Pro:1148*20
-# MBA:31
-# Macbook Air:1148*20
-# MAC:2375
-# iphone:9625*20
-# ipad:3418*20
-
-# Mac Air:19
-
-# environment
-getwd()
-wd_path <- "/Users/jack1563311/Google 雲端硬碟/台大經研碩二上/資料科學與社會研究/專案"
-setwd(wd_path)
-load("DS_Posts_iphone_2020-12-24_.rda")
+# # environment
+# getwd()
+# wd_path <- "/Users/jack1563311/Google 雲端硬碟/台大經研碩二上/資料科學與社會研究/專案"
+# setwd(wd_path)
+# load("DS_Posts_iphone_2020-12-24_.rda")
 
 
 # all iphone prices
@@ -36,15 +26,16 @@ tidy_df <- Posts %>%
            IsBought = ifelse(str_detect(string = ptitle, pattern = "徵到|徵得|已徵得|已徵到|收到|已購買|已購入"), 1, 0)) %>% 
     filter(!(IsBuy==0 & IsSell ==0 & IsChange ==0 & IsSold==0 & IsBought==0))
 #extract prices
-tidy_df <- tidy_df %>% 
+#tidy_df <- 
+tidy_df %>% 
     mutate(price_text = str_extract(pcontent, "價.{1,12}(\\d{2,5}){1,2}|價格.{1,8}(\\d{2,5}){1,2}")) %>% 
     mutate(price_text = gsub(",", "", price_text)) %>% 
     mutate(price = str_extract_all(price_text, "\\d{3,4}0")) %>%
     filter(lengths(price)<=2) %>% 
     drop_na() %>% 
     unnest(price) %>% 
-    mutate(price = as.numeric(price)) %>% 
-    group_by(url) %>% 
+    mutate(price = as.numeric(price)) %>%
+    group_by(url) %>%
     mutate(avg_price = mean(price)) %>% 
     ungroup() %>% 
     filter(!duplicated(url)) %>% 

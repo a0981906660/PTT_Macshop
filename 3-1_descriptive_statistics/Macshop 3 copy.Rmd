@@ -21,21 +21,23 @@ options(scipen=999)
 
 # 載入資料
 ```{r}
-load("DS_Posts_iphone_2020-12-24_.rda")
+load("/Users/Andy 1/Google 雲端硬碟 (r08323004@g.ntu.edu.tw)/0 Semesters/109-1/一234 資料科學/0_Final_Project/PTT_Macshop/1_data_scraping/collected_datasets/DS_Posts_iphone_2020-12-24_.rda")
 ```
 
 
 ```{r}
-type_pattern <- regex("iphone3g|iphone3gs|iphone4|iphone4s|iphone5|iphone5s|iphone6|iphone6s|iphone7|iphone8|iphonex|iphonexs|iphonexr|iphone11|iphone11pro|iphone12|iphone12pro|iphonese|iphonese2|iphonese1", ignore_case=TRUE)
+# type_pattern <- regex("iphone3g|iphone3gs|iphone4|iphone4s|iphone5|iphone5s|iphone6|iphone6s|iphone7|iphone8|iphonex|iphonexs|iphonexr|iphone11|iphone11pro|iphone12|iphone12pro|iphonese|iphonese2|iphonese1", ignore_case=TRUE)
+type_pattern <- regex("iphone3gs|iphone3g|iphone4s|iphone4|iphone5s|iphone5|iphone6s|iphone6|iphone7|iphone8|iphonexs|iphonexr|iphonex|iphone11pro|iphone11|iphone12pro|iphone12|iphonese2|iphonese1|iphonese", ignore_case=TRUE)
 try<-Posts%>%
+    # 處理時間
     mutate(ptime = parse_datetime(ptime, format = "%a %b %d %H:%M:%S %Y")) %>% 
     mutate(TimeUsed = as.numeric(ptime)) %>% 
-    #mutate(ptime = as.POSIXct(strptime(ptime, "%a %b %e %X %Y")))%>%
-    #mutate(type= str_sub(pcontent,1,30))%>%
-    mutate(type=str_replace_all(pcontent, "\\s", ""))%>%
+    # 找出所有的型號
+    mutate(type=str_replace_all(ptitle, "\\s", ""))%>%
     mutate(type=tolower(type))%>%
     mutate(type=str_extract(type, type_pattern))%>%
     drop_na()%>%
+    # 拿出價格
     mutate(price_text = str_extract(pcontent, "價.{1,12}(\\d{2,5}){1,2}|價格.{1,8}(\\d{2,5}){1,2}")) %>% 
     mutate(price_text = gsub(",", "", price_text)) %>% 
     mutate(price = str_extract_all(price_text, "\\d{3,4}0")) %>%
@@ -43,6 +45,7 @@ try<-Posts%>%
     drop_na() %>% 
     unnest(price) %>% 
     mutate(price = as.numeric(price)) %>% 
+    # 處理交易狀況
     mutate(IsSell = ifelse(str_detect(ptitle, "\\[販售\\]|\\[賣|出售|販售|售") |
                            str_detect(string = pcontent, pattern = "售價"), 1, 0),
            IsBuy = ifelse(str_detect(ptitle, "\\[收購\\]|\\[買") |
@@ -50,6 +53,15 @@ try<-Posts%>%
            IsChange = ifelse(str_detect(ptitle, "\\[交換\\]|\\[換"), 1, 0))%>%
     mutate(IsSold = ifelse(str_detect(string = ptitle, pattern = "售出|已售出|已售|已出售"), 1, 0),
            IsBought = ifelse(str_detect(string = ptitle, pattern = "徵到|徵得|已徵得|已徵到|收到|已購買|已購入"), 1, 0)) 
+```
+
+```{r}
+try %>% filter(type=="iphone4") %>% View
+# iPhone各型號數量站所有貼文總數之比
+try %>% 
+    dplyr::group_by(type) %>% 
+    dplyr::summarise(Type_Count = n()) %>% 
+    View
 ```
 
 
@@ -156,6 +168,7 @@ prec1<-all_clean_data%>%
     gather(key="type",value="prec")%>%
     arrange(desc(prec))
 
+    
 
               
 ```

@@ -415,6 +415,19 @@ latitude <- c(25.09108, 24.91571, 24.93759, 24.23321,
               23.56548, 25.10898, 24.43679)
 # 好啦，那現在有了經緯度，我們就可以根據剛剛的那個only_loc，給予每個row經緯度了
 # 我們把我們等等要mutate進去dataframe的經緯度分別叫做long & lat
+# long <- c()
+# lat <- c()
+# for(i in 1:length(only_loc)){
+#     if(only_loc[i] == 0){
+#         long <- c(long, 0)
+#         lat <- c(lat, 0)
+#     }else{
+#         long <- c(long, longitude[only_loc[i]])
+#         lat <- c(lat, latitude[only_loc[i]])
+#     }
+# }
+
+# jitter的概念，把每個點擾動一下
 long <- c()
 lat <- c()
 for(i in 1:length(only_loc)){
@@ -422,15 +435,16 @@ for(i in 1:length(only_loc)){
         long <- c(long, 0)
         lat <- c(lat, 0)
     }else{
-        long <- c(long, longitude[only_loc[i]])
-        lat <- c(lat, latitude[only_loc[i]])
+        long <- c(long, longitude[only_loc[i]]*101+rnorm(1, mean=0, sd=3))
+        lat <- c(lat, latitude[only_loc[i]]*111+rnorm(1, mean=0,sd=3))
     }
 }
+
 # 那現在bind回去，並且根據1~19賦予經緯度
 Final_loc_tidy <- loc_tidy %>%
     mutate(long = long) %>%
     mutate(lat = lat)
-
+Final_loc_tidy %>% View
 # 搞定啦！！！
 
 ### Spatial Econometrics model(Spatial Lag Regression)
@@ -481,24 +495,32 @@ i6s_WTP_df_group_only_long_lat <- Final_loc_tidy %>%
 
 
 mydata <- i6s_WTP_df_group_only_long_lat
+mydata <- Final_loc_tidy
 attach(mydata)
+#detach(mydata)
 
-Y <- cbind(quantity)
-X <- cbind(price, TimeUsed)
+Y <- cbind(mydata$avg_price)
+X <- cbind(TimeUsed, ROM)
+dim(Y)
+dim(X)
 xy <- cbind(mydata$long, mydata$lat)
-
+dim(xy)
 # Spatial weight matrix based on distance (with lower and upper bounds for distance, d1 and d2)
 ?dnearneigh
 
-nb <- dnearneigh(xy, d1=0, d2=2)
-listw <- nb2listw(nb, style="W")
-summary(listw)
+set.ZeroPolicyOption(TRUE) #https://r.789695.n4.nabble.com/Spatial-Ananlysis-zero-policy-TRUE-doesn-t-work-for-no-neighbour-regions-td4664367.html
+nb <- dnearneigh(xy, d1=0, d2=30)
+listw <- nb2listw(nb, style="W", zero.policy=TRUE)
+?nb2listw
+print(listw) 
+class(listw)
+summary(listw, zero.policy=TRUE)
 
 # Moran's I test
-moran.test(price, listw)
-moran.plot(price, listw)
+moran.test(mydata$avg_price, listw, zero.policy=TRUE)
+moran.plot(mydata$avg_price, listw, zero.policy=TRUE)
 # p-value 約等於1，顯著拒絕存在spatial dependence.
 
 # Spatial lag model
-spatial.lag1 <- lagsarlm(quantity ~ price + TimeUsed, data = mydata, listw)
+spatial.lag1 <- lagsarlm(mydata$avg_price ~ TimeUsed+ROM, data = mydata, listw)
 summary(spatial.lag1)

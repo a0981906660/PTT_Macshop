@@ -1,7 +1,7 @@
 ---
-title: "Macshop_Part1"
-author: "Vanessa Chung"
-date: "2020/12/26"
+title: "Plotting Pie Chart"
+author: "Boyie"
+date: "2021/01/10"
 output: html_document
 ---
 
@@ -90,9 +90,9 @@ data %>%
 
 ### tidy pie chart
 
-如果後面雜項太多、比重太小，就自成一個piece
+如果後面雜項太多、比重太小，就忽略
 ```{r}
-data %>% 
+pie_chart <- data %>% 
     mutate(type = factor(type, levels = rev(as.character(type)))) %>% 
     mutate(label = ifelse(prop>5, paste0(round(prop,1),"%"), "")) %>%
     ggplot(aes(x = "", y = prop, fill = type), order = ypos)+
@@ -103,5 +103,25 @@ data %>%
     labs(x = NULL, y = NULL, fill = NULL, 
          title = "Types of iPhones Among Posts") +
     guides(fill = guide_legend(reverse = TRUE))
+# view chart
+pie_chart
 
+# save file
+ggsave("pie_chart.png", plot = pie_chart, device = 'png', path = getwd())
+
+# usage
+
+# ggsave(
+#   filename,
+#   plot = last_plot(),
+#   device = NULL,
+#   path = NULL,
+#   scale = 1,
+#   width = NA,
+#   height = NA,
+#   units = c("in", "cm", "mm"),
+#   dpi = 300,
+#   limitsize = TRUE,
+#   ...
+# )
 ```
